@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import '../models/app_data.dart';
 import 'app_data_service.dart';
 
@@ -160,21 +161,35 @@ class UpdateService {
   // Compare version strings to check if remote version is newer
   bool _isNewerVersion(String current, String remote) {
     print('Comparing versions - Current: $current, Remote: $remote');
-    final currentParts = current.split('.').map(int.parse).toList();
-    final remoteParts = remote.split('.').map(int.parse).toList();
+    
+    if (current.isEmpty) return true; // Empty current version means not installed
+    
+    try {
+      final currentParts = current.split('.').map(int.parse).toList();
+      final remoteParts = remote.split('.').map(int.parse).toList();
 
-    for (var i = 0; i < 3; i++) {
-      final currentPart = currentParts[i];
-      final remotePart = remoteParts[i];
+      // Pad shorter version with zeros to match length
+      final maxLength = [currentParts.length, remoteParts.length].reduce(max);
+      while (currentParts.length < maxLength) currentParts.add(0);
+      while (remoteParts.length < maxLength) remoteParts.add(0);
 
-      if (remotePart > currentPart) {
-        print('Update available: $remote is newer than $current');
-        return true;
-      } else if (remotePart < currentPart) {
-        return false;
+      // Compare each version part
+      for (var i = 0; i < maxLength; i++) {
+        final currentPart = currentParts[i];
+        final remotePart = remoteParts[i];
+
+        if (remotePart > currentPart) {
+          print('Update available: $remote is newer than $current');
+          return true;
+        } else if (remotePart < currentPart) {
+          return false;
+        }
       }
+      
+      return false; // Versions are equal
+    } catch (e) {
+      print('Error parsing version numbers: $e');
+      return false; // On error, assume no update needed
     }
-
-    return false;
   }
 }
