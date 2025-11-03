@@ -14,7 +14,9 @@ class AppDataService {
     await Hive.initFlutter();
     Hive.registerAdapter(AppDataAdapter());
     _box = await Hive.openBox<AppData>(boxName);
-    await _refreshIndexIfNeeded();
+    // Always fetch the remote index on startup to get the latest app list
+    // This ensures the app shows new apps or updates immediately when opened.
+    await _fetchRemoteIndex();
   }
 
   // Refresh index if needed (every 24 hours)
@@ -100,5 +102,4 @@ class AppDataService {
   AppData? getApp(String package) {
     return _box.get(package);
   }
-// ...existing code...
 }
