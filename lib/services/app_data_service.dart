@@ -80,6 +80,37 @@ class AppDataService {
     return _box.values.toList();
   }
 
+  // Fetch the remote index directly and return AppData list without using Hive.
+  Future<List<AppData>> fetchIndexDirect() async {
+    try {
+      final client = HttpClient();
+      final uri = Uri.parse(indexUrl);
+      final request = await client.getUrl(uri);
+      final response = await request.close();
+      if (response.statusCode == 200) {
+        final jsonString = await response.transform(utf8.decoder).join();
+        final List<dynamic> jsonList = json.decode(jsonString);
+        final now = DateTime.now();
+        final List<AppData> apps = [];
+        for (var jsonApp in jsonList) {
+          final app = AppData(
+            name: jsonApp['name'],
+            package: jsonApp['package'],
+            currentVersion: '',
+            updateJsonUrl: jsonApp['update_json'],
+            installed: false,
+            lastIndexFetch: now,
+          );
+          apps.add(app);
+        }
+        return apps;
+      }
+    } catch (e) {
+      print('Error fetching remote index directly: $e');
+    }
+    return [];
+  }
+
   // Update app version and mark as installed
   Future<void> updateAppVersion(String package, String newVersion) async {
     final app = _box.get(package);

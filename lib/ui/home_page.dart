@@ -15,6 +15,7 @@ class _HomePageState extends State<HomePage> {
   List<AppData> _apps = [];
   Map<String, bool> _checkingStatus = {};
   Map<String, UpdateInfo> _pendingUpdates = {};
+  Map<String, String> _installedVersions = {};
 
   @override
   void initState() {
@@ -32,12 +33,20 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadApps() async {
-    final apps = updateService.loadApps();
+    // Fetch fresh index directly from remote
+    final apps = await updateService.fetchApps();
+    // Concurrently probe installed versions
+    final futures = apps.map((a) async {
+      final ver = await updateService.getInstalledVersion(a.package);
+      return MapEntry(a.package, ver);
+    }).toList();
+    final entries = await Future.wait(futures);
+    final installedMap = Map<String, String>.fromEntries(entries);
+
     setState(() {
       _apps = apps;
-      _checkingStatus = {
-        for (var app in apps) app.package: false,
-      };
+      _checkingStatus = {for (var app in apps) app.package: false};
+      _installedVersions = installedMap;
     });
   }
 
@@ -47,7 +56,7 @@ class _HomePageState extends State<HomePage> {
     });
 
     try {
-      final updateInfo = await updateService.checkForUpdates(app);
+  final updateInfo = await updateService.checkForUpdates(app);
 
       if (updateInfo != null && showUi) {
         if (!mounted) return;
@@ -113,7 +122,15 @@ class _HomePageState extends State<HomePage> {
               backgroundColor: success ? Colors.green : Colors.red,
             ),
           );
-          await _loadApps();
+          // Refresh installed version for this package
+          if (success) {
+            final newVer = await updateService.getInstalledVersion(app.package);
+            if (mounted) {
+              setState(() {
+                _installedVersions[app.package] = newVer;
+              });
+            }
+          }
         }
       } else if (updateInfo != null) {
         // Update available but UI is suppressed
@@ -172,9 +189,9 @@ class _HomePageState extends State<HomePage> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          app.installed
-                              ? 'Version: ${app.currentVersion}'
-                              : 'Not installed',
+            _installedVersions[app.package]?.isNotEmpty == true
+            ? 'Version: ${_installedVersions[app.package]}'
+            : 'Not installed',
                           style: TextStyle(color: Colors.white70),
                         ),
                       ],
@@ -190,10 +207,10 @@ class _HomePageState extends State<HomePage> {
                               strokeWidth: 2,
                             ),
                           )
-                        : Icon(app.installed ? Icons.refresh : Icons.download),
+                        : Icon(_installedVersions[app.package]?.isNotEmpty == true ? Icons.refresh : Icons.download),
                     label: Text(isChecking
-                        ? (app.installed ? 'Checking...' : 'Installing...')
-                        : (app.installed ? 'Check for Update' : 'Install')),
+                        ? (_installedVersions[app.package]?.isNotEmpty == true ? 'Checking...' : 'Installing...')
+                        : (_installedVersions[app.package]?.isNotEmpty == true ? 'Check for Update' : 'Install')),
                   ),
                 ],
               ), ),

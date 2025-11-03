@@ -38,8 +38,30 @@ class UpdateService {
   }
 
   // Load all apps (installed and not installed)
+  // Fetch apps from remote index directly (avoids relying on local DB)
+  Future<List<AppData>> fetchApps() async {
+    return await _appDataService.fetchIndexDirect();
+  }
+
+  // Synchronous wrapper kept for backward compatibility (reads Hive copy)
   List<AppData> loadApps() {
     return _appDataService.getAllApps();
+  }
+
+  // Determine installed version of a package by asking the system (dpkg)
+  Future<String> getInstalledVersion(String package) async {
+    try {
+      // Use dpkg-query to get the installed package version. Use raw string to avoid Dart interpolation.
+      final result = await Process.run('dpkg-query', ['-W', r'-f=${Version}\n', package]);
+      if (result.exitCode != 0) {
+        return '';
+      }
+      final out = (result.stdout ?? '').toString();
+      return out.trim();
+    } catch (e) {
+      print('Error checking installed version for $package: $e');
+      return '';
+    }
   }
 
   // Check for updates for a specific app
@@ -47,6 +69,10 @@ class UpdateService {
     try {
       print('Checking for updates for ${app.name}');
       print('Update URL: ${app.updateJsonUrl}');
+
+      // Check installed version from system rather than local DB
+      final installedVersion = await getInstalledVersion(app.package);
+      print('Installed version for ${app.package}: $installedVersion');
 
       final client = HttpClient();
       final uri = Uri.parse(app.updateJsonUrl);
@@ -62,7 +88,8 @@ class UpdateService {
         final updateInfo = UpdateInfo.fromJson(json.decode(jsonString));
         print('Parsed update info - Version: ${updateInfo.version}');
 
-        if (!app.installed || _isNewerVersion(app.currentVersion, updateInfo.version)) {
+        // Compare remote version with installed version detected from system
+        if (installedVersion.isEmpty || _isNewerVersion(installedVersion, updateInfo.version)) {
           print('New version available: ${updateInfo.version}');
           return updateInfo;
         }
