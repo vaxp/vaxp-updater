@@ -1,5 +1,5 @@
 {
   "version": "0.1.0",
-  "url": "https://github.com/vaxp/vaxp_updater/releases/download/vaxp_updater/vaxp-updater.deb",
+  "url": "https://github.com/vaxp/vaxp-updater/releases/download/vaxp-updater/vaxp-updater.deb",
   "changelog": "• Improved performance\n• Fixed minor bugs\n• UI optimizations for better responsiveness"
 }
